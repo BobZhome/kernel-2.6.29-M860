@@ -86,6 +86,8 @@ struct clkctl_acpu_speed {
 /* Pointers in acpu_freq_tbl[] for max up/down steppings. */
 	struct clkctl_acpu_speed *down[3];
 	struct clkctl_acpu_speed *up[3];
+	//For overclocking
+	short    pll2_lval;
 };
 
 static remote_spinlock_t pll_lock;
