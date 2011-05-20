@@ -298,6 +298,19 @@ config  HUAWEI_KERNEL
 	bool "HUAWEI Product"
 	depends on ARCH_MSM7X25	
 	
+config MSM_ARM11_OC
+	bool "ARM11 Overclock"
+	default n
+	help
+	  Enable overclocking capability for ARM11 CPUs.
+
+config MSM_ARM11_OC_CHAOS
+	depends on MSM_ARM11_OC
+	bool "ARM11 Overclock Chaos"
+	default n
+	help
+	  Enable even higher overclocking capability for ARM11 CPUs.
+
 config MSM_STACKED_MEMORY
 	bool "Stacked Memory"
 	default y
