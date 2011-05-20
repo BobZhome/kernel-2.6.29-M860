@@ -172,7 +172,7 @@ static void usb_chg_stop(struct work_struct *w);
 #define USB_FLAG_REG_OTG 0x0080
 
 #define USB_MSC_ONLY_FUNC_MAP	0x10
-#define DRIVER_NAME		"msm_hsusb_peripheral"
+#define DRIVER_NAME		"msm_hsusb"
 
 struct lpm_info {
 	unsigned int rs_rw;
