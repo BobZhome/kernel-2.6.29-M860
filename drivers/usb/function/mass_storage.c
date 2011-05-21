@@ -209,7 +209,7 @@ static int pid_in_cmd;
 /* 1: UDISK replace CDROM in normal USB composition
    0: not replace
 */
-int udisk_in_norm = 1;
+int udisk_in_norm = 0;
 
 /* Delay time in second to initiate store_file() if failed in the last time   */
 #define STORE_FILE_DELAY            1
@@ -218,29 +218,10 @@ static int store_file_number = 0;
 /* delay work for store_file() if failed in the last time */
 static struct delayed_work store_file_work;
 
-/* cofigure file in SD card for USB composition */
-/* fix USB composition to multiport */
-#define USB_FIX_NAME    "/sdcard/hwcfg/usb_fix.cfg"
-/* set USB SN for every mobile instead of NULL */
-#define USB_SN_NAME     "/sdcard/hwcfg/usb_sn.cfg"
-/* attempt number to check config file in SD card */
-#define SD_USB_CFG_CHECK_NUMBER             6
-/* gap in second for each attempt */
-#define SD_USB_CFG_CHECK_GAP                10      //10 second 
-
-static struct delayed_work check_sd_usb_cfg_work;
-/* only initiate checking once per USB cable plug in */
-static int sd_usb_cfg_check_flag = 0;
-/* count check number */
-static int sd_usb_cfg_check_number = 0;
-
-extern smem_huawei_vender usb_para_data;
-void set_usb_sn(char *sn_ptr);
-void usb_get_state(unsigned *state_para, unsigned *usb_state_para);
-
 void initiate_switch_to_cdrom(unsigned long delay_t);
 
 void usb_switch_composition(unsigned short pid);
+
 unsigned short usb_get_curr_product_id(void);
 
 /* support switch udisk interface from pc */
@@ -1421,8 +1402,7 @@ static int do_read_toc(struct fsg_dev *fsg, struct fsg_buffhd *bh)
 
 /*------------------------------------------------------------
   function      : usb_switch_composition_func
-  description   : switch composition operation from pc. 
-                  for example: initiate the USB composition switch to multiport
+  description   : initiate the USB composition switch to multiport
   input         : 
   output        : none
   return        : none
@@ -2191,18 +2171,18 @@ static int check_command(struct fsg_dev *fsg, int cmnd_size,
 		if ((fsg->cmnd[0] == SC_REQUEST_SENSE && fsg->cmnd_size == 12)
 		 || (fsg->cmnd[0] == SC_INQUIRY && fsg->cmnd_size == 12))
 			cmnd_size = fsg->cmnd_size;
-	    #ifdef CONFIG_USB_AUTO_INSTALL
+	    #ifdef CONFIG_USB_AUTO_PID_ADAPTER
 	    else if (12 == fsg->cmnd_size){
 	      /* because in bootloader phase some computers send the scsi cmd length 
 	        isn't standard, it will result the computers start in long time or 
 	        can't start at all. */
-	      USB_PR("huawei_mass_sotrage: cmd(0x%02x) size(%d) isn't standard size(%d)\n", 
+	      printk(KERN_INFO"huawei_mass_sotrage: cmd(0x%02x) size(%d) isn't standard size(%d)\n", 
 	      fsg->cmnd[0], fsg->cmnd_size, cmnd_size);
 	    }
 	    #endif
 		else {
-	      #ifdef CONFIG_USB_AUTO_INSTALL
-	      USB_PR("huawei_mass_sotrage: cmd(0x%02x) size(%d) isn't standard size(%d)\n", 
+	      #ifdef CONFIG_USB_AUTO_PID_ADAPTER
+	      printk(KERN_WARNING"!! Cause PC boot error, huawei_mass_sotrage: cmd(0x%02x) size(%d) isn't standard size(%d)\n", 
 	      fsg->cmnd[0], fsg->cmnd_size, cmnd_size);
 	      #endif
 			fsg->phase_error = 1;
@@ -3059,6 +3039,8 @@ static ssize_t store_file(struct device *dev, struct device_attribute *attr,
 	struct fsg_dev	*fsg = dev_get_drvdata(dev);
 	int		rc = 0;
 
+#ifdef CONFIG_USB_AUTO_INSTALL
+
     USB_PR("%s, buf=%s, count=%d\n", __func__, buf, count);
 
     if((*buf == 0)&&(count == 1))
@@ -3067,21 +3049,7 @@ static ssize_t store_file(struct device *dev, struct device_attribute *attr,
         USB_PR("initiate usb switch to CDROM, delay 100ms\n");
         initiate_switch_to_cdrom(10); //10ms * 10 = 100ms
     }
-    {
-        unsigned ui_state, ui_usb_state;
-        //extern void usb_get_state(unsigned *state_para, unsigned *usb_state_para);
-        
-        usb_get_state(&ui_state, &ui_usb_state);
-        USB_PR("ui_state=%d, ui_usb_state=%d\n", ui_state, ui_usb_state);
-
-        /* initiate switch to CDROM when ui_state is OFFLINE(2) and the 
-           written string including u disk path */
-        if((ui_state == 2) && (strstr(buf, "vold/179:0")))
-        {
-            USB_PR("initiate usb switch to CDROM for OFFLINE state, delay 100ms\n");
-            initiate_switch_to_cdrom(10); //10ms * 10 = 100ms
-        }
-    }
+#endif
 	DBG(fsg, "store_file: \"%s\"\n", buf);
 #if 0
 	/* disabled because we need to allow closing the backing file if the media was removed */
@@ -3120,7 +3088,6 @@ static ssize_t store_file(struct device *dev, struct device_attribute *attr,
 static void store_file_again_func(struct work_struct *w)
 {
 	struct fsg_dev		*fsg = the_fsg;
-	//int			rc;
 	struct lun		*curlun;
     ssize_t ret_val;
 
@@ -3141,121 +3108,6 @@ static void store_file_again_func(struct work_struct *w)
 }
 #endif
 
-/* switch usb composition to multiport and
-   set the usb serial number if usb_sn_flag = 1
-*/
-static void usb_fix_and_set_sn(int usb_sn_flag)
-{
-    if(usb_sn_flag == 1)
-    {
-        /* set USB sn to bluetooth address */
-        set_usb_sn(usb_para_data.usb_para.usb_serial);
-    }
-    usb_switch_composition(curr_usb_pid_ptr->norm_pid);
-}
-/*
-    check the file USB_FIX_NAME and USB_SN_NAME are exist or not. 
-    if file USB_FIX_NAME is exist, switch usb composition to multiport.
-    if file USB_SN_NAME is ixist, set the usb sn to bluetooth address
-*/
-static void check_sd_usb_cfg_func(struct work_struct *w)
-{
-	struct file	*filp = NULL;
-    int usb_fix_flag = 0;
-    int usb_sn_flag = 0;
-
-    USB_PR("%s(%d)\n", __func__, sd_usb_cfg_check_number);
-    
-	filp = filp_open(USB_FIX_NAME, O_RDONLY | O_LARGEFILE, 0);
-	if (IS_ERR(filp)) 
-    {
-		USB_PR("unable to open file: %s\n", USB_FIX_NAME);
-	}
-    else
-    {
-        usb_fix_flag = 1;
-		USB_PR("open file: %s success\n", USB_FIX_NAME);
-        filp_close(filp, NULL);
-    }
-
-	filp = filp_open(USB_SN_NAME, O_RDONLY | O_LARGEFILE, 0);
-	if (IS_ERR(filp)) 
-    {
-		USB_PR("unable to open file: %s\n", USB_SN_NAME);
-	}
-    else
-    {
-        usb_sn_flag = 1;
-		USB_PR("open file: %s success\n", USB_SN_NAME);
-        filp_close(filp, NULL);
-    }
-
-    sd_usb_cfg_check_number ++;
-
-    if((usb_fix_flag != 0) || (usb_sn_flag != 0))
-    {
-        /* at least one file is opened success, switch USB to multiport */
-        USB_PR("usb_fix_flag=%d, usb_sn_flag=%d\n", usb_fix_flag, usb_sn_flag);
-        sd_usb_cfg_check_number = 0;
-        usb_fix_and_set_sn(usb_sn_flag);
-    }
-    else
-    {
-        if(sd_usb_cfg_check_number >= SD_USB_CFG_CHECK_NUMBER)
-        {
-            USB_PR("finish %s, cfg file is not found\n", __func__);
-            sd_usb_cfg_check_number = 0;
-        }
-        else
-        {
-            USB_PR("do %s %d seconds later...\n", __func__, SD_USB_CFG_CHECK_GAP);
-            schedule_delayed_work(&check_sd_usb_cfg_work, SD_USB_CFG_CHECK_GAP * HZ);
-        }
-    }
-}
-
-/* When the USB cable plugs in, initiate a delay work to check the configure file
-   for USB composition is exist or not in the SD card. 
-*/
-void sd_usb_cfg_check(void)
-{
-    /* check sdcard usb config file */
-    if(sd_usb_cfg_check_flag == 0)
-    {
-        USB_PR("initiate check_sd_usb_cfg_func when USB plug in\n");
-        sd_usb_cfg_check_flag = 1;
-        schedule_delayed_work(&check_sd_usb_cfg_work, SD_USB_CFG_CHECK_GAP * HZ);
-    }
-}
-
-/* Initiate SD card configure file checking when mobile powerup
-*/
-static void startup_sd_usb_cfg_check(void)
-{
-    /* startup check flag, used only for powerup */
-    static int startup_sd_usb_cfg_check_flag = 0;
-    unsigned ui_state, ui_usb_state;
-    
-    if(startup_sd_usb_cfg_check_flag == 0)
-    {
-        usb_get_state(&ui_state, &ui_usb_state);
-        USB_PR("%s, ui_state(%d, %d)\n", __func__, ui_state, ui_usb_state);
-
-        startup_sd_usb_cfg_check_flag = 1;
-        if(ui_state != 2)  //not in OFFLINE state
-        {
-            USB_PR("startup check_sd_usb_cfg_func when power up\n");
-            schedule_delayed_work(&check_sd_usb_cfg_work, SD_USB_CFG_CHECK_GAP * HZ);
-        }
-    }
-}
-
-/* restore the initial state for SD card configure file checking */
-void sd_usb_cfg_init(void)
-{
-    sd_usb_cfg_check_flag = 0;
-    sd_usb_cfg_check_number = 0;
-}
 
 static DEVICE_ATTR(file, 0444, show_file, store_file);
 
@@ -3457,9 +3309,6 @@ static void fsg_bind(void *_ctxt)
     {
         u16 curr_pid;
         curr_pid = usb_get_curr_product_id();
-
-        USB_PR("curr_pid=0x%x\n", curr_pid);
-
         if((curr_usb_pid_ptr->cdrom_pid == curr_pid) || 
            ((curr_usb_pid_ptr->norm_pid == curr_pid)&&(0 == udisk_in_norm)) ||
            (curr_usb_pid_ptr->auth_pid == curr_pid))
@@ -3485,9 +3334,6 @@ static void fsg_bind(void *_ctxt)
             }
         }
         USB_PR("fsg_bind finished\n");
-
-        startup_sd_usb_cfg_check();
-
     }
 #endif
 	return;
@@ -3644,9 +3490,6 @@ static int __init fsg_init(void)
 #ifdef CONFIG_USB_AUTO_INSTALL
     INIT_DELAYED_WORK(&fsg_switch_func, usb_switch_composition_func);
     INIT_DELAYED_WORK(&store_file_work, store_file_again_func);
-
-    INIT_DELAYED_WORK(&check_sd_usb_cfg_work, check_sd_usb_cfg_func);
-    
     INIT_DELAYED_WORK(&sent_udisk_uevent_work, usb_sent_udisk_uevent_func);
 #endif
 
@@ -3661,9 +3504,6 @@ static void __exit fsg_cleanup(void)
 #ifdef CONFIG_USB_AUTO_INSTALL
 	cancel_delayed_work_sync(&fsg_switch_func);
 	cancel_delayed_work_sync(&store_file_work);
-
-	cancel_delayed_work_sync(&check_sd_usb_cfg_work);
-    
   cancel_delayed_work_sync(&sent_udisk_uevent_work);
 #endif
 }

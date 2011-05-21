@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C) 2007 Google, Inc.
  * Copyright (c) 2008-2009, Code Aurora Forum. All rights reserved.
@@ -75,33 +76,6 @@
 #include "jogball_device.h"
 #endif
 
-#ifdef CONFIG_USB_AUTO_INSTALL
-#include "../../../drivers/usb/function/usb_switch_huawei.h"
-#include "../../../arch/arm/mach-msm/proc_comm.h"
-#include "smd_private.h"
-
-#define USB_SERIAL_LEN 20
-static unsigned char usb_serial_num[USB_SERIAL_LEN]="hw";
-/* keep the parameters transmitted from SMEM */
-smem_huawei_vender usb_para_data;
-
-/* keep the boot mode transfered from APPSBL */
-unsigned int usb_boot_mode = 0;
-
-/* keep usb parameters transfered from modem */
-app_usb_para usb_para_info;
-
-/* all the pid used by mobile */
-usb_pid_stru usb_pid_array[]={
-    {PID_ONLY_CDROM,     PID_NORMAL,     PID_UDISK, PID_AUTH},     /* for COMMON products */
-    {PID_ONLY_CDROM_TMO, PID_NORMAL_TMO, PID_UDISK, PID_AUTH_TMO}, /* for TMO products */
-};
-
-/* pointer to the member of usb_pid_array[], according to the current product */
-usb_pid_stru *curr_usb_pid_ptr = &usb_pid_array[0];
-void set_usb_sn(char *sn_ptr);
-#endif 
-
 /* add lcd_id and camera_id for uni platform purpers */
 static unsigned int camera_id = 0;
 static unsigned int lcd_id = 0;
@@ -125,25 +99,11 @@ static struct platform_device huawei_battery_device = {
 
 #endif
 #ifdef CONFIG_USB_FUNCTION
-/* add a lun for MS in autorun feature */
 static struct usb_mass_storage_platform_data usb_mass_storage_pdata = {
-#ifdef CONFIG_USB_AUTO_INSTALL
     .nluns          = 0x01,
-#endif
     .buf_size       = 16384,
-    //.vendor         = "Android",
-    //.product        = "Adapter",
-    .vendor         = "Huawei",
-    .product        = "M860",
-	.release        = 0xffff,
-};
-static struct usb_mass_storage_platform_data usb_mass_storage_tmo_pdata = {
-#ifdef CONFIG_USB_AUTO_INSTALL
-    .nluns          = 0x01,
-#endif
-    .buf_size       = 16384,
-    .vendor         = "T-Mobile",
-    .product        = "3G Phone",
+    .vendor         = "Android",
+    .product        = "Adapter",
 	.release        = 0xffff,
 };
 
@@ -167,72 +127,6 @@ static struct usb_function_map usb_functions_map[] = {
 #ifdef CONFIG_HUAWEI_USB_CONSOLE
 	{"serial_console", 5},
 #endif    
-};
-
-/* dynamic composition */
-static struct usb_composition usb_tmo_func_composition[] = {
-	{
-		.product_id         = 0x9012,
-		.functions	    = 0x5, /* 0101 */
-	},
-
-	{
-		.product_id         = 0x9013,
-		.functions	    = 0x15, /* 10101 */
-	},
-
-	{
-		.product_id         = 0x9014,
-		.functions	    = 0x30, /* 110000 */
-	},
-
-	{
-		.product_id         = 0x9016,
-		.functions	    = 0xD, /* 01101 */
-	},
-
-	{
-		.product_id         = 0x9017,
-		.functions	    = 0x1D, /* 11101 */
-	},
-
-	{
-		.product_id         = 0xF000,
-		.functions	    = 0x10, /* 10000 */
-	},
-
-	{
-		.product_id         = 0xF009,
-		.functions	    = 0x20, /* 100000 */
-	},
-/* add a usb composition for the only MS setting */
-#ifdef CONFIG_USB_AUTO_INSTALL
-	{
-		.product_id         = PID_ONLY_CDROM_TMO,
-		.functions	    = 0x04, /* 000100, ONLY CDROM */
-	},
-	{
-		.product_id         = PID_UDISK,
-		.functions	    = 0x04, /* 000100, ONLY UDISK */
-	},
-#endif
-	{
-        .product_id         = PID_NORMAL_TMO,
-#ifdef CONFIG_HUAWEI_DIAG_DEBUG
-#ifdef CONFIG_HUAWEI_USB_CONSOLE
-	   .functions	    = 0x3F, /* 00111111 */
-#else  // else CONFIG_HUAWEI_USB_CONSOLE
-       .functions	    = 0x1F, /* 00011111 */
-#endif // endif CONFIG_HUAWEI_USB_CONSOLE     
-
-#else  // else CONFIG_HUAWEI_DIAG_DEBUG
-       .functions       = 0x0F, /* 00001111 */
-#endif // endif CONFIG_HUAWEI_USB_FUNCTION_PCUI
-	},
-	{
-		.product_id     = PID_AUTH_TMO,
-		.functions	    = 0x01F, /* 011111 */
-	},
 };
 
 /* dynamic composition */
@@ -272,19 +166,8 @@ static struct usb_composition usb_func_composition[] = {
 		.functions	    = 0x20, /* 100000 */
 	},
 
-/* add a usb composition for the only MS setting */
-#ifdef CONFIG_USB_AUTO_INSTALL
 	{
-		.product_id         = PID_ONLY_CDROM,
-		.functions	    = 0x04, /* 000100, ONLY CDROM */
-	},
-	{
-		.product_id         = PID_UDISK,
-		.functions	    = 0x04, /* 000100, ONLY UDISK */
-	},
-#endif
-	{
-        .product_id         = PID_NORMAL,
+        .product_id         = 0x1502,
 #ifdef CONFIG_HUAWEI_DIAG_DEBUG
 #ifdef CONFIG_HUAWEI_USB_CONSOLE
 	   .functions	    = 0x3F, /* 00111111 */
@@ -295,10 +178,6 @@ static struct usb_composition usb_func_composition[] = {
 #else  // else CONFIG_HUAWEI_DIAG_DEBUG
        .functions       = 0x0F, /* 00001111 */
 #endif // endif CONFIG_HUAWEI_USB_FUNCTION_PCUI
-	},
-	{
-		.product_id     = PID_AUTH,
-		.functions	    = 0x01F, /* 011111 */
 	},
 };
 #endif
@@ -313,21 +192,6 @@ static struct msm_hsusb_platform_data msm_hsusb_pdata = {
     .serial_number      = NULL,
     .manufacturer_name  = "Huawei Incorporated",
 	.compositions	= usb_func_composition,
-	.num_compositions = ARRAY_SIZE(usb_func_composition),
-	.function_map   = usb_functions_map,
-	.num_functions	= ARRAY_SIZE(usb_functions_map),
-	.config_gpio    = NULL,
-#endif
-};
-static struct msm_hsusb_platform_data msm_hsusb_tmo_pdata = {
-#ifdef CONFIG_USB_FUNCTION
-	.version	= 0x0100,
-	.phy_info	= (USB_PHY_INTEGRATED | USB_PHY_MODEL_65NM),
-    .vendor_id          = 0x12D1,
-    .product_name       = "T-Mobile 3G Phone",
-    .serial_number      = NULL,
-    .manufacturer_name  = "Huawei Incorporated",
-	.compositions	= usb_tmo_func_composition,
 	.num_compositions = ARRAY_SIZE(usb_func_composition),
 	.function_map   = usb_functions_map,
 	.num_functions	= ARRAY_SIZE(usb_functions_map),
@@ -1790,7 +1654,7 @@ static uint32_t msm_sdcc_setup_power(struct device *dv, unsigned int vdd)
 	}
 
 	if (!vreg_sts) {
-        /*wifi 上电不在此处处理,如SD卡需要在此处上电,请修改vreg_mmc*/
+        /*wifi �ϵ粻�ڴ˴�����,��SD����Ҫ�ڴ˴��ϵ�,���޸�vreg_mmc*/
         //rc = vreg_set_level(vreg_mmc, 2850);
         if (!rc)
             //rc = vreg_enable(vreg_mmc);
@@ -2016,118 +1880,6 @@ static void __init msm_device_i2c_init(void)
     msm_device_i2c.dev.platform_data = &msm_i2c_pdata;
 }
 
-#ifdef CONFIG_USB_AUTO_INSTALL
-/* provide a method to map pid_index to usb_pid, 
- * pid_index is kept in NV(4526). 
- * At power up, pid_index is read in modem and transfer to app in share memory.
- * pid_index can be modified through write file fixusb(msm_hsusb_store_fixusb).
-*/
-u16 pid_index_to_pid(u32 pid_index)
-{
-    u16 usb_pid = 0xFFFF;
-    
-    switch(pid_index)
-    {
-        case CDROM_INDEX:
-            usb_pid = curr_usb_pid_ptr->cdrom_pid;
-            break;
-        case NORM_INDEX:
-            usb_pid = curr_usb_pid_ptr->norm_pid;
-            break;
-        case AUTH_INDEX:
-            usb_pid = curr_usb_pid_ptr->auth_pid;
-            break;
-            
-        /* set the USB pid to multiport when the index is 0
-           This is happened when the NV is not set or set 
-           to zero 
-        */
-        case ORI_INDEX:
-        default:
-            usb_pid = curr_usb_pid_ptr->norm_pid;
-            break;
-    }
-
-    USB_PR("%s, pid_index=%d, usb_pid=0x%x\n", __func__, pid_index, usb_pid);
-    
-    return usb_pid;
-}
-
-/*  
- * Get usb parameter from share memory and set usb serial number accordingly.
- */
-static void proc_usb_para(void)
-{
-    smem_huawei_vender *usb_para_ptr;
-    //u16 pid;
-    char *vender_name="t-mobile";
-
-    USB_PR("< %s\n", __func__);
-
-    /* initialize */
-    usb_para_info.usb_pid_index = 0;
-    usb_para_info.usb_pid = PID_NORMAL;
-    
-    /* now the smem_id_vendor0 smem id is a new struct */
-    usb_para_ptr = (smem_huawei_vender*)smem_alloc(SMEM_ID_VENDOR0, sizeof(smem_huawei_vender));
-    if (!usb_para_ptr)
-    {
-    	USB_PR("%s: Can't find usb parameter\n", __func__);
-        return;
-    }
-
-    USB_PR("vendor:%s,country:%s\n", usb_para_ptr->vender_para.vender_name, usb_para_ptr->vender_para.country_name);
-
-    memcpy(&usb_para_data, usb_para_ptr, sizeof(smem_huawei_vender));
-    
-    /* decide usb pid array according to the vender name */
-    if(!memcmp(usb_para_ptr->vender_para.vender_name, vender_name, strlen(vender_name)))
-    {
-        curr_usb_pid_ptr = &usb_pid_array[1];
-        USB_PR("USB setting is TMO\n");
-    }
-    else
-    {
-        curr_usb_pid_ptr = &usb_pid_array[0];
-        USB_PR("USB setting is NORMAL\n");
-    }
-
-    USB_PR("smem usb_serial=%s, usb_pid_index=%d\n", usb_para_ptr->usb_para.usb_serial, usb_para_ptr->usb_para.usb_pid_index);
-
-    usb_para_info.usb_pid_index = usb_para_ptr->usb_para.usb_pid_index;
-    usb_para_info.usb_pid = pid_index_to_pid(usb_para_ptr->usb_para.usb_pid_index);
-    
-    USB_PR("curr_usb_pid_ptr: 0x%x, 0x%x, 0x%x, 0x%x\n", 
-        curr_usb_pid_ptr->cdrom_pid, 
-        curr_usb_pid_ptr->norm_pid, 
-        curr_usb_pid_ptr->udisk_pid,
-        curr_usb_pid_ptr->auth_pid);
-    USB_PR("usb_para_info: usb_pid_index=%d, usb_pid = 0x%x>\n", 
-        usb_para_info.usb_pid_index, 
-        usb_para_info.usb_pid);
-
-}
-
-/* set usb serial number */
-void set_usb_sn(char *sn_ptr)
-{
-    if(sn_ptr == NULL)
-    {
-        ((struct msm_hsusb_platform_data *)(msm_device_hsusb_peripheral.dev.platform_data))->serial_number = NULL;
-        //msm_hsusb_pdata.serial_number = NULL;
-        USB_PR("set USB SN to NULL\n");
-    }
-    else
-    {
-        memcpy(usb_serial_num, sn_ptr, strlen(sn_ptr));
-        ((struct msm_hsusb_platform_data *)(msm_device_hsusb_peripheral.dev.platform_data))->serial_number = (char *)usb_serial_num;
-        //msm_hsusb_pdata.serial_number = (char *)usb_serial_num;
-        USB_PR("set USB SN to %s\n", usb_serial_num);
-
-    }
-}
-#endif
-
 static void __init msm7x2x_init(void)
 {
 	if (socinfo_init() < 0)
@@ -2148,24 +1900,7 @@ static void __init msm7x2x_init(void)
 		msm7x25_pm_data
 		[MSM_PM_SLEEP_MODE_RAMP_DOWN_AND_WAIT_FOR_INTERRUPT].latency;
 
-#ifdef CONFIG_USB_AUTO_INSTALL
-    proc_usb_para();
-#endif  /* #ifdef CONFIG_USB_AUTO_INSTALL */
-
-    if(&usb_pid_array[1] == curr_usb_pid_ptr)
-    {
-        msm_device_hsusb_peripheral.dev.platform_data = &msm_hsusb_tmo_pdata;
-        mass_storage_device.dev.platform_data = &usb_mass_storage_tmo_pdata;
-    }
-    else
-    {
         msm_device_hsusb_peripheral.dev.platform_data = &msm_hsusb_pdata;
-    }
-
-    if(NORM_INDEX == usb_para_info.usb_pid_index)
-    {
-        set_usb_sn(USB_SN_STRING);
-    }
 
 
 	platform_add_devices(devices, ARRAY_SIZE(devices));
@@ -2320,11 +2055,6 @@ static void __init msm7x2x_fixup(struct machine_desc *desc,
     sub_board_id = parse_tag_sub_board_id((const struct tag *)tags);
     printk("%s:sub_board_id=%d\n", __func__, sub_board_id);
 
-#ifdef CONFIG_USB_AUTO_INSTALL
-    /* get the boot mode transfered from APPSBL */
-    usb_boot_mode = parse_tag_boot_mode_id((const struct tag *)tags);
-    USB_PR("%s,usb_boot_mode=0x%x\n", __func__, usb_boot_mode);
-#endif
 }
 
 static void __init msm7x2x_map_io(void)
@@ -2975,4 +2705,3 @@ MACHINE_START(MSM7X25_M860, "HUAWEI M860 BOARD")
 	.init_machine	= msm7x2x_init,
 	.timer		= &msm_timer,
 MACHINE_END
-

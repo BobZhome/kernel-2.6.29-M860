@@ -1987,7 +1987,7 @@ static int usb_hw_reset(struct usb_info *ui)
 		 * SW workaround, Issue#2
 		 */
 		cfg_val = ulpi_read(ui, ULPI_CONFIG_REG);
-		cfg_val |= ULPI_AMPLITUDE_MAX;
+		cfg_val |= ULPI_AMPLITUDE;
 		ulpi_write(ui, cfg_val, ULPI_CONFIG_REG);
 
 		writel(0x0, USB_AHB_BURST);
@@ -2329,13 +2329,13 @@ static unsigned short usb_set_composition(unsigned short pid)
 			}
 			pr_info("%s: composition set to product id = %x\n",
 				__func__, ui->composition->product_id);
-            USB_PR("%s, composition set to product id = %x\n",
-				__func__, ui->composition->product_id);
+            //USB_PR("%s, composition set to product id = %x\n",
+				//__func__, ui->composition->product_id);
 			return ui->composition->product_id;
 		}
 	}
 	pr_err("%s: product id (%x) not supported\n", __func__, pid);
-    USB_PR("%s, product id (%x) not supported\n", __func__, pid);
+    //USB_PR("%s, product id (%x) not supported\n", __func__, pid);
 	return 0;
 }
 
@@ -2514,8 +2514,8 @@ static void usb_switch_composition(unsigned short pid)
 	queue_delayed_work(usb_work, &ui->work, 0);
 	enable_irq(ui->irq);
 
-    USB_PR("%s, usb_switch_para.inprogress = 0\n", __func__);
-    usb_switch_para.inprogress = 0;
+    //USB_PR("%s, usb_switch_para.inprogress = 0\n", __func__);
+    //usb_switch_para.inprogress = 0;
 }
 #ifdef CONFIG_USB_AUTO_INSTALL
 EXPORT_SYMBOL(usb_switch_composition);
@@ -2551,18 +2551,7 @@ void usb_function_enable(const char *function, int enable)
 	fi->enabled = enable;
 
 
-    if((curr_usb_pid_ptr->cdrom_pid == usb_get_curr_product_id())||
-        (curr_usb_pid_ptr->udisk_pid == usb_get_curr_product_id()))
-    {
-    	for (i = 0; i < ui->num_funcs; i++) {
-    		struct usb_function_info *fi = ui->func[i];
-    		if (fi && fi->enabled)
-    			functions_mask |= (1 << i);
-    	}
 
-    	pid = usb_get_product_id(functions_mask);
-    }
-    else
     {
     	for (i = 0; i < ui->num_funcs; i++) {
     		struct usb_function_info *fi = ui->func[i];
@@ -2592,8 +2581,6 @@ void usb_function_enable(const char *function, int enable)
 		pr_err("%s: continuing with current composition\n", __func__);
 		return;
 	}
-    USB_PR("%s, pid=0x%x\n", __func__, pid);
-	usb_switch_composition(pid);
 }
 EXPORT_SYMBOL(usb_function_enable);
 
@@ -2806,7 +2793,7 @@ static void usb_do_work(struct work_struct *w)
 						USB_CHG_DET_DELAY);
 				pr_info("hsusb: OFFLINE -> ONLINE\n");
 
-                sd_usb_cfg_check();
+                //sd_usb_cfg_check();
                 
 				enable_irq(ui->irq);
 				break;
