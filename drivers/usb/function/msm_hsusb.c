@@ -51,12 +51,6 @@
 #define MSM_USB_BASE ((unsigned) ui->addr)
 
 #include "usb_function.h"
-#ifdef CONFIG_USB_AUTO_INSTALL
-#include <linux/syscalls.h>
-#include <linux/debugfs.h>
-#include "usb_switch_huawei.h"
-#include "../../../arch/arm/mach-msm/proc_comm.h"
-#endif
 
 #define EPT_FLAG_IN	0x0001
 #define USB_DIR_MASK	USB_DIR_IN
@@ -82,28 +76,7 @@
 #ifndef CONFIG_HUAWEI_USB_FUNCTION
 static int pid = 0x9018;
 #else
-#ifdef CONFIG_USB_AUTO_INSTALL
-static int usb_pid = PID_ONLY_CDROM; // pid for u8220-6, u8230 general release
-#else
-static int pid = 0x1502; // pid for u8220-6, u8230 general release
-#endif
-#endif
-
-#ifdef CONFIG_USB_AUTO_INSTALL
-//extern app_usb_para usb_para_info;
-static struct delayed_work adb_disable_work;
-static struct delayed_work adb_enable_work;
-/* switch back to cdrom when plug out the usb cable */
-static struct delayed_work usb_switch_to_cdrom_work;
-
-usb_switch_stru usb_switch_para;
-
-void set_usb_sn(char *sn_ptr);
-
-void sd_usb_cfg_init(void);
-void sd_usb_cfg_check(void);
-
-static u8 is_mmc_exist = false;
+static int pid = 0x1502; // general release
 #endif
 
 static int usb_init_err;
@@ -283,11 +256,8 @@ static unsigned short usb_validate_product_id(unsigned short pid);
 static unsigned short usb_get_product_id(unsigned long enabled_functions);
 #endif
 
-#ifdef CONFIG_USB_AUTO_INSTALL
-void usb_switch_composition(unsigned short pid);
-#else
+
 static void usb_switch_composition(unsigned short pid);
-#endif
 static unsigned short usb_set_composition(unsigned short pid);
 static void usb_configure_device_descriptor(struct usb_info *ui);
 static void usb_uninit(struct usb_info *ui);
@@ -500,51 +470,6 @@ unsigned short usb_get_curr_product_id(void)
 {
     return the_usb_info->composition->product_id;
 }
-
-#ifdef CONFIG_USB_AUTO_INSTALL
-/* switch the usb composition back to cdrom when plug out the usb cable */
-static void usb_switch_to_cdrom(struct work_struct *w)
-{
-    USB_PR("%s, usb_para_info.usb_pid=0x%x\n", __func__, usb_para_info.usb_pid);
-    /* prevent USB switching when the usb para pid is norm_pid or auth_pid */
-    if((usb_para_info.usb_pid == curr_usb_pid_ptr->norm_pid) || 
-        (usb_para_info.usb_pid == curr_usb_pid_ptr->auth_pid))
-    {
-        USB_PR("switch to cdrom blocked, usb_para_info.usb_pid=0x%x\n", usb_para_info.usb_pid);
-        /* prevent usb switching */
-        return;
-    }
-
-    sd_usb_cfg_init();
-
-    usb_switch_composition(curr_usb_pid_ptr->cdrom_pid);
-}
-
-void initiate_switch_to_cdrom(unsigned long delay_t)
-{
-    schedule_delayed_work(&usb_switch_to_cdrom_work, delay_t);
-}
-static void adb_disable_function(struct work_struct *w)
-{
-    //ADB_FUNCTION_NAME
-    usb_function_enable("adb", 0);
-
-    /* enable adb after 20ms */
-    schedule_delayed_work(&adb_enable_work, 2);
-    
-}
-
-static void adb_enable_function(struct work_struct *w)
-{
-    usb_function_enable("adb", 1);
-}
-
-/* entry function to reactivate the adb function */
-void adb_reactivate(void)
-{
-    schedule_delayed_work(&adb_disable_work, 2);
-}
-#endif
 
 static inline int usb_msm_get_selfpowered(void)
 {
@@ -1767,9 +1692,6 @@ static irqreturn_t usb_interrupt(int irq, void *data)
 
 static void usb_prepare(struct usb_info *ui)
 {
-#ifdef CONFIG_USB_AUTO_INSTALL
-	USB_PR("%s\n", __func__);
-#endif
 	memset(ui->buf, 0, 4096);
 	ui->head = (void *) (ui->buf + 0);
 
@@ -1795,11 +1717,6 @@ static void usb_prepare(struct usb_info *ui)
 	INIT_WORK(&ui->li.wakeup_phy, usb_lpm_wakeup_phy);
 	INIT_DELAYED_WORK(&ui->work, usb_do_work);
 	INIT_DELAYED_WORK(&ui->chg_legacy_det, usb_chg_legacy_detect);
-#ifdef CONFIG_USB_AUTO_INSTALL
-    INIT_DELAYED_WORK(&usb_switch_to_cdrom_work, usb_switch_to_cdrom);
-    INIT_DELAYED_WORK(&adb_disable_work, adb_disable_function);
-    INIT_DELAYED_WORK(&adb_enable_work, adb_enable_function);
-#endif
 }
 
 static int usb_is_online(struct usb_info *ui)
@@ -1925,9 +1842,6 @@ static int usb_hw_reset(struct usb_info *ui)
 	unsigned long timeout;
 	unsigned val = 0;
 
-#ifdef CONFIG_USB_AUTO_INSTALL
-	USB_PR("%s: ui->online=%d\n", __func__, ui->online);
-#endif
 	pdata = ui->pdev->dev.platform_data;
 
 	clk_enable(ui->clk);
@@ -2059,9 +1973,7 @@ static void usb_enable(void *handle, int enable)
 	struct usb_info *ui = handle;
 	unsigned long flags;
 	spin_lock_irqsave(&ui->lock, flags);
-#ifdef CONFIG_USB_AUTO_INSTALL
-    USB_PR("%s: enable=%d\n", __func__, enable);
-#endif
+
 	if (enable) {
 		ui->flags |= USB_FLAG_RESET;
 		ui->active = 1;
@@ -2162,9 +2074,6 @@ static void usb_try_to_bind(void)
 	unsigned long enabled_functions = 0;
 	int i;
 
-#ifdef CONFIG_USB_AUTO_INSTALL
-    USB_PR("usb_try_to_bind\n");
-#endif
 	if (!ui || ui->bound || !ui->pdev || !ui->composition)
 		return;
 
@@ -2175,16 +2084,12 @@ static void usb_try_to_bind(void)
 	if ((enabled_functions & ui->composition->functions)
 					!= ui->composition->functions)
 	{
-#ifdef CONFIG_USB_AUTO_INSTALL
-        USB_PR("return, enable_func=0x%x, comp_func=0x%x\n", (unsigned int)enabled_functions, (unsigned int)(ui->composition->functions));
-#endif
+
 		return;
 	}
 
 	usb_set_composition(ui->composition->product_id);
-#ifdef CONFIG_USB_AUTO_INSTALL
-    USB_PR("set pid in usb_try_to_bind\n");
-#endif
+
 	usb_configure_device_descriptor(ui);
 
 	/* we have found all the needed functions */
@@ -2339,87 +2244,7 @@ static unsigned short usb_set_composition(unsigned short pid)
 	return 0;
 }
 
-#ifdef CONFIG_USB_AUTO_INSTALL
-/* the function is unload the usb devices form host pc. for some mobile(M860) multidload,
-   when switch to usb normal download mode, the diag port is display for a long time.
-*/
-void unprobe_usb_composition(void)
-{
-  struct usb_info *ui = the_usb_info;
-  int i;
-  unsigned long flags;
-  unsigned short pid = usb_get_curr_product_id();
-
-  USB_PR("%s begin\n", __func__);
-  
-  if (!ui->active)
-    return;
-  if (!usb_validate_product_id(pid))
-    return;
-
-  disable_irq(ui->irq);
-  if (cancel_delayed_work_sync(&ui->work))
-    pr_info("%s: Removed work successfully\n", __func__);
-  if (ui->running) {
-    spin_lock_irqsave(&ui->lock, flags);
-    ui->running = 0;
-    ui->online = 0;
-    ui->bound = 0;
-    spin_unlock_irqrestore(&ui->lock, flags);
-    /* we should come out of lpm to access registers */
-    if (ui->in_lpm) {
-      if (PHY_TYPE(ui->phy_info) == USB_PHY_EXTERNAL) {
-        disable_irq(ui->gpio_irq[0]);
-        disable_irq(ui->gpio_irq[1]);
-      }
-
-      if (ui->usb_state == USB_STATE_NOTATTACHED
-            && ui->vbus_sn_notif)
-        msm_pm_app_enable_usb_ldo(1);
-
-      usb_lpm_exit(ui);
-      if (cancel_work_sync(&ui->li.wakeup_phy))
-        usb_lpm_wakeup_phy(NULL);
-      ui->in_lpm = 0;
-    }
-    /* disable usb and session valid interrupts */
-    writel(0, USB_USBINTR);
-    writel(readl(USB_OTGSC) & ~OTGSC_BSVIE, USB_OTGSC);
-
-    /* stop the controller */
-    usb_disable_pullup(ui);
-    ui->usb_state = USB_STATE_NOTATTACHED;
-    switch_set_state(&ui->sdev, 0);
-
-    /* Before starting again, wait for 300ms
-     * to make sure host detects soft disconnection
-     **/
-    msleep(300);
-  }
-
-  for (i = 0; i < ui->num_funcs; i++) {
-    struct usb_function_info *fi = ui->func[i];
-    if (!fi || !fi->func || !fi->enabled)
-      continue;
-    if (fi->func->configure)
-      fi->func->configure(0, fi->func->context);
-    if (fi->func->unbind)
-      fi->func->unbind(fi->func->context);
-  }
-
-  usb_uninit(ui);
-
-  USB_PR("%s success\n", __func__);
-}
-EXPORT_SYMBOL(unprobe_usb_composition);
-#endif
-
-
-#ifdef CONFIG_USB_AUTO_INSTALL
-void usb_switch_composition(unsigned short pid)
-#else
 static void usb_switch_composition(unsigned short pid)
-#endif
 {
 	struct usb_info *ui = the_usb_info;
 	int i;
@@ -2435,9 +2260,7 @@ static void usb_switch_composition(unsigned short pid)
 	if (cancel_delayed_work_sync(&ui->work))
 		pr_info("%s: Removed work successfully\n", __func__);
 	if (ui->running) {
-#ifdef CONFIG_USB_AUTO_INSTALL
-        USB_PR("ui->running\n");
-#endif
+
 		spin_lock_irqsave(&ui->lock, flags);
 		ui->running = 0;
 		ui->online = 0;
@@ -2468,9 +2291,7 @@ static void usb_switch_composition(unsigned short pid)
 		ui->usb_state = USB_STATE_NOTATTACHED;
 		switch_set_state(&ui->sdev, 0);
 
-#ifdef CONFIG_USB_AUTO_INSTALL
-        USB_PR("usb_disable_pullup\n");
-#endif
+
 		/* Before starting again, wait for 300ms
 		 * to make sure host detects soft disconnection
 		 **/
@@ -2489,9 +2310,7 @@ static void usb_switch_composition(unsigned short pid)
 
 	usb_uninit(ui);
 	usb_set_composition(pid);
-#ifdef CONFIG_USB_AUTO_INSTALL
-    USB_PR("usb_set_composition\n");
-#endif
+
 	usb_configure_device_descriptor(ui);
 
 #ifdef CONFIG_HUAWEI_USB_FUNCTION
@@ -2517,9 +2336,6 @@ static void usb_switch_composition(unsigned short pid)
     //USB_PR("%s, usb_switch_para.inprogress = 0\n", __func__);
     //usb_switch_para.inprogress = 0;
 }
-#ifdef CONFIG_USB_AUTO_INSTALL
-EXPORT_SYMBOL(usb_switch_composition);
-#endif
 
 void usb_function_enable(const char *function, int enable)
 {
@@ -2646,9 +2462,7 @@ static void usb_do_work(struct work_struct *w)
 		/* give up if we have nothing to do */
 		if (flags == 0)
 			break;
-#ifdef CONFIG_USB_AUTO_INSTALL
-		USB_PR("%s: ui->state=%d, flags=0x%x\n", __func__, ui->state, (unsigned int)flags);
-#endif
+
 		switch (ui->state) {
 		case USB_STATE_IDLE:
 			if (flags & USB_FLAG_REG_OTG) {
@@ -2711,9 +2525,7 @@ static void usb_do_work(struct work_struct *w)
 				ui->chg_type = USB_CHG_TYPE__INVALID;
 				spin_unlock_irqrestore(&ui->lock, f);
 			
-#ifdef CONFIG_USB_AUTO_INSTALL
-                initiate_switch_to_cdrom(0);
-#endif
+
 	if (temp != USB_CHG_TYPE__INVALID) {
 					/* re-acquire wakelock and restore axi
 					 * freq if they have been reduced by
@@ -3038,9 +2850,6 @@ static void usb_vbus_offline(struct usb_info *ui)
 	unsigned long timeout;
 	unsigned val = 0;
 
-#ifdef CONFIG_USB_AUTO_INSTALL
-	USB_PR("%s: ui->online=%d\n", __func__, ui->online);
-#endif
 
 	if (ui->online != 0) {
 		ui->online = 0;
@@ -3410,317 +3219,7 @@ static ssize_t msm_hsusb_show_speed(struct device *dev,
 	i = scnprintf(buf, PAGE_SIZE, "%s\n", speed[ui->speed]);
 	return i;
 }
-#ifdef CONFIG_USB_AUTO_INSTALL
-static ssize_t msm_hsusb_store_fixusb(struct device *dev,
-					  struct device_attribute *attr,
-					  const char *buf, size_t size)
-{
-	unsigned long pid_index = 0;
-    unsigned nv_item = 4526;
-    int  rval = -1;
-    u16  pid;
-    
-    USB_PR("%s, buf=%s\n", __func__, buf);
-	if (!strict_strtoul(buf, 10, &pid_index))
-    {
-        rval = msm_proc_comm(PCOM_NV_WRITE, &nv_item, (unsigned*)&pid_index); 
-        if(0 == rval)
-        {
-            USB_PR("Fixusb write OK! nv(%d)=%d, rval=%d\n", nv_item, (int)pid_index, rval);
-        }
-        else
-        {
-            USB_PR("Fixusb write failed! nv(%d)=%d, rval=%d\n", nv_item, (int)pid_index, rval);
-        }
-        if(pid_index == NORM_INDEX)
-        {
-            /* set sn if pid is norm_pid */
-            set_usb_sn(USB_SN_STRING);
-        }
-        else
-        {
-            /* set sn to NULL */
-            set_usb_sn(NULL);
-        }
 
-        pid = pid_index_to_pid(pid_index);
-
-        /* update usb_para_info.usb_pid when the user set USB pid */
-        usb_para_info.usb_pid = pid;
-        usb_para_info.usb_pid_index = pid_index;
-        USB_PR("usb_para_info update: %d - 0x%x\n", 
-            usb_para_info.usb_pid_index, usb_para_info.usb_pid);
-
-		usb_switch_composition((unsigned short)pid);
-        
-	}
-    else
-	{
-		USB_PR("%s: Fixusb conversion failed\n", __func__);
-	}
-
-	return size;
-}
-static ssize_t msm_hsusb_show_fixusb(struct device *dev,
-					 struct device_attribute *attr,
-					 char *buf)
-{
-	int i;
-    u16 pid_index = 0xff;
-    unsigned nv_item = 4526;
-    int  rval = -1;
-    rval = msm_proc_comm(PCOM_NV_READ, &nv_item, (unsigned*)&pid_index); 
-	if(0 == rval)
-	{
-        USB_PR("Fixusb read OK! nv(%d)=%d, rval=%d\n", nv_item, pid_index, rval);
-	}
-    else
-	{
-        USB_PR("Fixusb read failed! nv(%d)=%d, rval=%d\n", nv_item, pid_index, rval);
-	}
-	i = scnprintf(buf, PAGE_SIZE, "Fixusb read nv(%d)=%d, rval=%d\n", nv_item, pid_index, rval);
-	return i;
-}
-
-static ssize_t msm_hsusb_show_switchusb(struct device *dev,
-					 struct device_attribute *attr,
-					 char *buf)
-{
-	int i;
-
-    if(usb_switch_para.dest_pid == curr_usb_pid_ptr->udisk_pid)
-    {
-    	i = scnprintf(buf, PAGE_SIZE, "usb_switch_para.dest_pid is udisk\n");
-    }
-    else if(usb_switch_para.dest_pid == curr_usb_pid_ptr->norm_pid)
-    {
-    	i = scnprintf(buf, PAGE_SIZE, "usb_switch_para.dest_pid is norm\n");
-    }
-    else if(usb_switch_para.dest_pid == curr_usb_pid_ptr->cdrom_pid)
-    {
-    	i = scnprintf(buf, PAGE_SIZE, "usb_switch_para.dest_pid is cdrom\n");
-    }
-    else
-    {
-    	i = scnprintf(buf, PAGE_SIZE, "usb_switch_para.dest_pid is not set\n");
-    }
-
-	return i;
-}
-
-static ssize_t msm_hsusb_store_switchusb(struct device *dev,
-					  struct device_attribute *attr,
-					  const char *buf, size_t size)
-{
-	//unsigned long pid;
-    char *udisk = "udisk";
-    char *norm="norm";
-    char *cdrom="cdrom";
-    
-    USB_PR("%s, buf = %s, size = %d\n", __func__, buf, size);
-
-    if(1 == usb_switch_para.inprogress)
-    {
-        USB_PR("%s, switch blocked, buf=%s\n", __func__, buf);
-        return size;
-    }
-
-    USB_PR("%s, switch to %s\n", __func__, buf);
-    
-    if(!memcmp(buf, udisk, strlen(udisk)))
-    {
-        usb_switch_para.dest_pid = curr_usb_pid_ptr->udisk_pid;
-    }
-    else if(!memcmp(buf, norm, strlen(norm)))
-    {
-        usb_switch_para.dest_pid = curr_usb_pid_ptr->norm_pid;
-    }
-    else if(!memcmp(buf, cdrom, strlen(cdrom)))
-    {
-        usb_switch_para.dest_pid = curr_usb_pid_ptr->cdrom_pid;
-    }
-    else
-    {
-        USB_PR("invalid input parameter\n");
-        return size;
-    }
-
-    /* support switch udisk interface from pc */
-    /* if the new pid is same as current pid, do nothing */
-    if (usb_get_curr_product_id() != usb_switch_para.dest_pid)
-    {
-      usb_switch_para.inprogress = 1;
-      usb_switch_composition((unsigned short)usb_switch_para.dest_pid);
-    }
-    else
-    {
-      USB_PR("switch block for already in pid state.\n");
-    }
-    
-	return size;
-}
-
-static ssize_t msm_hsusb_show_enableadb(struct device *dev,
-					 struct device_attribute *attr,
-					 char *buf)
-{
-	int i;
-    extern adb_io_stru adb_flow;
-
-  	i = scnprintf(buf, PAGE_SIZE, "adb: R(0x%x), W(0x%x), ACT(%d), QN(%d)\n", 
-                adb_flow.read_num, adb_flow.write_num, 
-                adb_flow.active, adb_flow.query_num);
-
-	return i;
-    
-}
-
-ssize_t msm_hsusb_store_enableadb(struct device *dev,
-					  struct device_attribute *attr,
-					  const char *buf, size_t size)
-{
-	int adb_control;
-    char *enable_adb = "enable";
-    char *disable_adb="disable";
-    
-    USB_PR("%s, (%d)buf = %s\n", __func__, size, buf);
-
-    if(!memcmp(buf, enable_adb, strlen(enable_adb)))
-    {
-        USB_PR("enable_adb(1)\n");
-        adb_control = 1;
-    }
-    else if(!memcmp(buf, disable_adb, strlen(disable_adb)))
-    {
-        USB_PR("disable_adb(0)\n");
-        adb_control = 0;
-    }
-    else
-    {
-        USB_PR("invalid input parameter\n");
-        return size;
-    }
-    /* disable adb and then enable it again */
-
-    //ADB_FUNCTION_NAME
-    usb_function_enable("adb", adb_control);
-
-    /* enable adb after 20ms */
-    schedule_delayed_work(&adb_enable_work, 2);
-    
-	return size;
-}
-
-
-/* support switch udisk interface from pc */
-/* set the sd exist state by vold */
-ssize_t msm_hsusb_checksdstatus(struct device *dev,
-            struct device_attribute *attr,
-            const char *buf, size_t size)
-{
-  if (1 != size){
-    return size;
-  }
-  
-  is_mmc_exist = *buf;
-  USB_PR("msm_hsusb_checksdstatus: is_mmc_exist=%d\n", is_mmc_exist);
-    
-  return size;
-}
-
-/* get the sd exist state*/
-u8 get_mmc_exist(void)
-{
-  return is_mmc_exist;
-}
-
-/* give the reading enable/disable modem interface to application */
-ssize_t msm_hsusb_show_modem_ctlmode(struct device *dev,
-            struct device_attribute *attr,
-            char *buf)
-{
-  const char *enable  = "enable";
-  const char *disable ="disable";
-  int size = 0;
-  /* 60014和射频bin是否备份标识nv冲突,更改为60016 */
-  unsigned nv_item = 60016; 
-  unsigned long mode = 0;
-  int rval;
-
-  /* read the nv form arm9 to check the modem status */
-  rval = msm_proc_comm(PCOM_NV_READ, &nv_item, (unsigned*)&mode); 
-  if (rval)
-  {
-    USB_PR("%s PCOM_NV_READ %d error. error state=%d\n", __func__, nv_item, rval);
-  }
-
-  /* because the modem default is disable for M860. Only the product macro 
-     is m860 and the nv value is 0 or not active, disable the modem
-  */
-  if (!mode && machine_is_msm7x25_m860())
-  {
-    size = scnprintf(buf, PAGE_SIZE, "%s\n", disable);
-    USB_PR("%s %s\n", __func__, disable);
-  }
-  else
-  {
-    size = scnprintf(buf, PAGE_SIZE, "%s\n", enable);
-    USB_PR("%s %s\n", __func__, enable);
-  }
-    
-  return size;
-}
-
-/* give the setting enable/disable modem interface to application */
-ssize_t msm_hsusb_store_modem_ctlmode(struct device *dev,
-            struct device_attribute *attr,
-            const char *buf, size_t size)
-{
-  const char *enable  = "enable";
-  const char *disable ="disable";
-  /* 60014和射频bin是否备份标识nv冲突,更改为60016 */
-  unsigned nv_item = 60016; 
-  int mode = 0;
-  int rval;
-
-  /* because olny for M860 the modem could set to disable. 
-     if the product isn't m860, return failed.
-  */
-  if (!machine_is_msm7x25_m860())
-  {
-    return -1;
-  }
-  
-  if (0 == memcmp(buf, enable, strlen(enable)))
-  {
-    mode = 1;
-  }
-  else if (0 == memcmp(buf, disable, strlen(disable)))
-  {
-    mode = 0;
-  }
-  else
-  {
-    pr_err("%s para(%s) error!\n", __func__, buf);
-    return 0;
-  }
-
-  /* set the value to nv in arm9, then prompt user to reset the phone.
-     then the port-bridge get the modem status to decide disable or 
-     enable the modem
-  */
-  rval = msm_proc_comm(PCOM_NV_WRITE, &nv_item, (unsigned*)&mode);
-
-  if (rval)
-  {
-    pr_err("%s PCOM_NV_WRITE %d error. error state=%d\n", __func__, nv_item, rval);
-    return 0;
-  }
-
-  USB_PR("%s PCOM_NV_WRITE item=%d value=%d success.\n", __func__, nv_item, mode);
-  return size;
-}
-#endif
 static DEVICE_ATTR(composition, 0664,
 		msm_hsusb_show_compswitch, msm_hsusb_store_compswitch);
 static DEVICE_ATTR(func_enable, S_IWUSR,
@@ -3730,21 +3229,7 @@ static DEVICE_ATTR(autoresume, 0222,
 static DEVICE_ATTR(state, 0664, msm_hsusb_show_state, NULL);
 static DEVICE_ATTR(lpm, 0664, msm_hsusb_show_lpm, NULL);
 static DEVICE_ATTR(speed, 0664, msm_hsusb_show_speed, NULL);
-#ifdef CONFIG_USB_AUTO_INSTALL
-static DEVICE_ATTR(fixusb, 0666, 
-        msm_hsusb_show_fixusb, msm_hsusb_store_fixusb);
-static DEVICE_ATTR(switchusb, 0666, 
-        msm_hsusb_show_switchusb, msm_hsusb_store_switchusb);
 
-static DEVICE_ATTR(enableadb, 0666, 
-        msm_hsusb_show_enableadb, msm_hsusb_store_enableadb);
-
-static DEVICE_ATTR(checksdstatus, 0666, NULL, msm_hsusb_checksdstatus);
-
-static DEVICE_ATTR(modemcm, 0666, 
-        msm_hsusb_show_modem_ctlmode, msm_hsusb_store_modem_ctlmode);
-
-#endif
 static struct attribute *msm_hsusb_attrs[] = {
 	&dev_attr_composition.attr,
 	&dev_attr_func_enable.attr,
@@ -3752,13 +3237,7 @@ static struct attribute *msm_hsusb_attrs[] = {
 	&dev_attr_state.attr,
 	&dev_attr_lpm.attr,
 	&dev_attr_speed.attr,
-#ifdef CONFIG_USB_AUTO_INSTALL
-	&dev_attr_fixusb.attr,
-	&dev_attr_switchusb.attr,
-    &dev_attr_enableadb.attr,
-    &dev_attr_checksdstatus.attr,
-    &dev_attr_modemcm.attr,
-#endif
+
 	NULL,
 };
 static struct attribute_group msm_hsusb_attr_grp = {
@@ -3808,9 +3287,7 @@ static int __init usb_probe(struct platform_device *pdev)
 	int ret;
 	int i;
 
-#ifdef CONFIG_USB_AUTO_INSTALL
-    USB_PR("usb_probe\n");
-#endif
+
 	ui = kzalloc(sizeof(struct usb_info), GFP_KERNEL);
 	if (!ui)
 		return -ENOMEM;
@@ -3850,16 +3327,9 @@ static int __init usb_probe(struct platform_device *pdev)
 		usb_init_err = -ENOMEM;
 		return usb_init_err;
 	}
+    
 
-#ifdef CONFIG_USB_AUTO_INSTALL
-    usb_pid = usb_para_info.usb_pid;
-    USB_PR("%s,usb_pid=0x%x\n", __func__, usb_pid);
-#endif    
-#ifdef CONFIG_USB_AUTO_INSTALL
-	if (!usb_set_composition(usb_pid)) {
-#else
 	if (!usb_set_composition(pid)) {
-#endif
 		usb_init_err = -ENODEV;
 		return usb_init_err;
 	}
@@ -4167,13 +3637,9 @@ static void __exit usb_module_exit(void)
 	usb_exit();
 }
 
-#ifdef CONFIG_USB_AUTO_INSTALL
-module_param(usb_pid, int, 0);
-MODULE_PARM_DESC(usb_pid, "Product ID of the desired composition");
-#else
 module_param(pid, int, 0);
 MODULE_PARM_DESC(pid, "Product ID of the desired composition");
-#endif
+
 
 module_init(usb_module_init);
 module_exit(usb_module_exit);

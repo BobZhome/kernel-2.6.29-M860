@@ -134,13 +134,4 @@ config USB_FUNCTION_SERIAL
 
 	default USB_FUNCTION_MSM_HSUSB
 
-config USB_AUTO_INSTALL
-	boolean "USB Auto Install Function"
-	depends on USB_FUNCTION
-	depends on USB_FUNCTION_MSM_HSUSB
-	help
-	  Implements USB driver auto installation.
-
-	default y
-
 endmenu
