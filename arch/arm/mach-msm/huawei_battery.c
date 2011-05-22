@@ -841,10 +841,10 @@ static int handle_battery_call(struct msm_rpc_server *server,
 		return 0;
 	}
   /* the subcommand is call by function toolsdiag_dload_jump in arm9 toolsdiag.c. */
-  case RPC_UNPROBE_USB_COMPOSITION_PROC:{
-    unprobe_usb_composition();
-    return 0;
-  }
+  //case RPC_UNPROBE_USB_COMPOSITION_PROC:{
+  //  unprobe_usb_composition();
+  //  return 0;
+  //}
 	default:
 		printk(KERN_ERR "%s: program 0x%08x:%d: unknown procedure %d\n",
 		       __FUNCTION__, req->prog, req->vers, req->procedure);
