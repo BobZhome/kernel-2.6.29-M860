@@ -86,6 +86,8 @@ struct clkctl_acpu_speed {
 /* Pointers in acpu_freq_tbl[] for max up/down steppings. */
 	struct clkctl_acpu_speed *down[3];
 	struct clkctl_acpu_speed *up[3];
+        //For overclocking
+        //short    pll2_lval;
 };
 
 static remote_spinlock_t pll_lock;
@@ -170,17 +172,17 @@ static struct clkctl_acpu_speed pll0_245_pll1_960_pll2_1200[] = {
 	{ 0, 400000, ACPU_PLL_2, 2, 2, 133333, 2, 5, 122880 },
 	{ 1, 480000, ACPU_PLL_1, 1, 1, 160000, 2, 6, 122880 },
 	{ 1, 600000, ACPU_PLL_2, 2, 1, 200000, 2, 7, 122880 },
-#ifdef CONFIG_MSM_ARM11_OC
 	{ 1, 614400, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
 	{ 1, 633600, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
 	{ 1, 652800, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
 	{ 1, 672000, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
 	{ 1, 691200, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
 	{ 1, 710400, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
-#ifdef CONFIG_MSM_ARM11_OC_CHAOS
 	{ 1, 729600, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
+#ifdef CONFIG_MSM_ARM11_OC
 	{ 1, 748800, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
         { 1, 768000, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
+#ifdef CONFIG_MSM_ARM11_OC_CHAOS
         { 1, 787200, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
         { 1, 806400, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
 #endif /* Chaos overclocking */
@@ -199,6 +201,13 @@ static struct clkctl_acpu_speed pll0_196_pll1_960_pll2_1200[] = {
 	{ 0, 400000, ACPU_PLL_2, 2, 2, 133333, 2, 5, 120000 },
 	{ 1, 480000, ACPU_PLL_1, 1, 1, 160000, 2, 6, 120000 },
 	{ 1, 600000, ACPU_PLL_2, 2, 1, 200000, 2, 7, 120000 },
+        { 1, 614000, ACPU_PLL_2, 2, 1, 132000, 3, 7, 160000 },
+        { 1, 633200, ACPU_PLL_2, 2, 1, 132000, 3, 7, 160000 },
+        { 1, 652800, ACPU_PLL_2, 2, 1, 163200, 3, 7, 122880 },
+        { 1, 691200, ACPU_PLL_2, 2, 1, 172800, 3, 7, 122880 },
+        { 1, 710400, ACPU_PLL_2, 2, 1, 175200, 3, 7, 122880 },
+        { 1, 729600, ACPU_PLL_2, 2, 1, 182400, 3, 7, 122880 },
+        { 1, 748800, ACPU_PLL_2, 2, 1, 187200, 3, 7, 122880 },
 	{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, {0, 0, 0}, {0, 0, 0} }
 };
 
@@ -213,6 +222,14 @@ static struct clkctl_acpu_speed pll0_960_pll1_245_pll2_1200[] = {
 	{ 0, 400000, ACPU_PLL_2, 2, 2, 133333, 2, 5, 122880 },
 	{ 1, 480000, ACPU_PLL_0, 4, 1, 160000, 2, 6, 122880 },
 	{ 1, 600000, ACPU_PLL_2, 2, 1, 200000, 2, 7, 122880 },
+	{ 1, 614400, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
+	{ 1, 633600, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
+	{ 1, 652800, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
+	{ 1, 672000, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
+	{ 1, 691200, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
+	{ 1, 710400, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
+	{ 1, 729600, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
+	{ 1, 748800, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
 	{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, {0, 0, 0}, {0, 0, 0} }
 };
 
@@ -227,6 +244,14 @@ static struct clkctl_acpu_speed pll0_960_pll1_196_pll2_1200[] = {
 	{ 0, 400000, ACPU_PLL_2, 2, 2, 133333, 2, 5, 120000 },
 	{ 1, 480000, ACPU_PLL_0, 4, 1, 160000, 2, 6, 120000 },
 	{ 1, 600000, ACPU_PLL_2, 2, 1, 200000, 2, 7, 120000 },
+	{ 1, 614400, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
+	{ 1, 633600, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
+	{ 1, 652800, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
+	{ 1, 672000, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
+	{ 1, 691200, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
+	{ 1, 710400, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
+	{ 1, 729600, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
+	{ 1, 748800, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
 	{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, {0, 0, 0}, {0, 0, 0} }
 };
 
@@ -406,8 +431,7 @@ static void acpuclk_set_div(const struct clkctl_acpu_speed *hunt_s) {
 	src_sel = reg_clksel & 1;
 
 	a11_div=hunt_s->a11clk_src_div;
-#ifdef CONFIG_MSM_ARM11_OC
-	//Overclocking
+
 	if(hunt_s->a11clk_khz==614400) {
 		a11_div=0;
 		writel(0x20, MSM_CLK_CTL_BASE+0x33C);
@@ -438,12 +462,13 @@ static void acpuclk_set_div(const struct clkctl_acpu_speed *hunt_s) {
 		writel(0x25, MSM_CLK_CTL_BASE+0x33C);
 		udelay(50);
 	}
-#ifdef CONFIG_MSM_ARM11_OC_CHAOS
 	if(hunt_s->a11clk_khz==729600) {
 		a11_div=0;
 		writel(0x26, MSM_CLK_CTL_BASE+0x33C);
 		udelay(50);
 	}
+#ifdef CONFIG_MSM_ARM11_OC
+	//Overclocking
 	if(hunt_s->a11clk_khz==748800) {
 		a11_div=0;
 		writel(0x27, MSM_CLK_CTL_BASE+0x33C);
@@ -454,6 +479,7 @@ static void acpuclk_set_div(const struct clkctl_acpu_speed *hunt_s) {
 		writel(0x28, MSM_CLK_CTL_BASE+0x33C);
 		udelay(50);
 	}
+#ifdef CONFIG_MSM_ARM11_OC_CHAOS
 	if(hunt_s->a11clk_khz==787200) {
 		a11_div=0;
 		writel(0x29, MSM_CLK_CTL_BASE+0x33C);
