@@ -176,15 +176,12 @@ static struct clkctl_acpu_speed pll0_245_pll1_960_pll2_1200[] = {
 	{ 1, 633600, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
 	{ 1, 652800, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
 	{ 1, 672000, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
+#ifdef CONFIG_MSM_ARM11_OC
 	{ 1, 691200, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
 	{ 1, 710400, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
-	{ 1, 729600, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
-#ifdef CONFIG_MSM_ARM11_OC
-	{ 1, 748800, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
-        { 1, 768000, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
 #ifdef CONFIG_MSM_ARM11_OC_CHAOS
-        { 1, 787200, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
-        { 1, 806400, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
+	{ 1, 729600, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
+	{ 1, 748800, ACPU_PLL_2, 2, 1, 132000, 3, 7, 122880 },
 #endif /* Chaos overclocking */
 #endif /* Regular overclocking */
 	{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, {0, 0, 0}, {0, 0, 0} }
@@ -447,6 +444,8 @@ static void acpuclk_set_div(const struct clkctl_acpu_speed *hunt_s) {
 		writel(0x22, MSM_CLK_CTL_BASE+0x33C);
 		udelay(50);
 	}
+#ifdef CONFIG_MSM_ARM11_OC
+	//Overclocking
 	if(hunt_s->a11clk_khz==672000) {
 		a11_div=0;
 		writel(0x23, MSM_CLK_CTL_BASE+0x33C);
@@ -462,32 +461,16 @@ static void acpuclk_set_div(const struct clkctl_acpu_speed *hunt_s) {
 		writel(0x25, MSM_CLK_CTL_BASE+0x33C);
 		udelay(50);
 	}
+#ifdef CONFIG_MSM_ARM11_OC_CHAOS
+	//Chaos overclocking
 	if(hunt_s->a11clk_khz==729600) {
 		a11_div=0;
 		writel(0x26, MSM_CLK_CTL_BASE+0x33C);
 		udelay(50);
 	}
-#ifdef CONFIG_MSM_ARM11_OC
-	//Overclocking
 	if(hunt_s->a11clk_khz==748800) {
 		a11_div=0;
 		writel(0x27, MSM_CLK_CTL_BASE+0x33C);
-		udelay(50);
-	}
-	if(hunt_s->a11clk_khz==768000) {
-		a11_div=0;
-		writel(0x28, MSM_CLK_CTL_BASE+0x33C);
-		udelay(50);
-	}
-#ifdef CONFIG_MSM_ARM11_OC_CHAOS
-	if(hunt_s->a11clk_khz==787200) {
-		a11_div=0;
-		writel(0x29, MSM_CLK_CTL_BASE+0x33C);
-		udelay(50);
-	}
-	if(hunt_s->a11clk_khz==806400) {
-		a11_div=0;
-		writel(0x30, MSM_CLK_CTL_BASE+0x33C);
 		udelay(50);
 	}
 #endif
